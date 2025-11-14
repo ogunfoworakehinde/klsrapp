@@ -1,0 +1,55 @@
+name: Build AAB
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Build web assets
+      run: npm run build
+      
+    - name: Sync capacitor
+      run: npx cap sync
+      
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/klsr-release.keystore
+        
+    - name: Build AAB
+      working-directory: android
+      run: |
+        chmod +x gradlew
+        ./gradlew bundleRelease \
+          -Pandroid.injected.signing.store.file=app/klsr-release.keystore \
+          -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        
+    - name: Upload AAB artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release-aab
+        path: android/app/build/outputs/bundle/release/app-release.aab
+        retention-days: 30
