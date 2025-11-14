@@ -1,0 +1,7 @@
+{
+  "name": "KLSR App",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}

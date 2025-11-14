@@ -1,0 +1,42 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    // Prevent plugin Gradle files (like capacitor) from re-adding repositories
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "android"
+
+// App module
+include ':app'
+
+// Capacitor core module
+include ':capacitor-android'
+project(':capacitor-android').projectDir = file('../node_modules/@capacitor/android/capacitor')
+
+// Capacitor plugins
+include ':capacitor-app'
+project(':capacitor-app').projectDir = file('../node_modules/@capacitor/app/android')
+
+include ':capacitor-haptics'
+project(':capacitor-haptics').projectDir = file('../node_modules/@capacitor/haptics/android')
+
+include ':capacitor-keyboard'
+project(':capacitor-keyboard').projectDir = file('../node_modules/@capacitor/keyboard/android')
+
+include ':capacitor-share'
+project(':capacitor-share').projectDir = file('../node_modules/@capacitor/share/android')
+
+include ':capacitor-status-bar'
+project(':capacitor-status-bar').projectDir = file('../node_modules/@capacitor/status-bar/android')
