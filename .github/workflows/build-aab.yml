@@ -27,12 +27,12 @@ jobs:
         
     - name: Install dependencies
       run: npm install --legacy-peer-deps
-
-        - name: Fix ALL Java version issues
+      
+    - name: Fix ALL Java version issues
       run: |
         chmod +x fix-java-version.sh
         ./fix-java-version.sh
-
+      
     - name: Build web assets
       run: npm run build
       
@@ -46,7 +46,7 @@ jobs:
       run: |
         echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/klsr-release.keystore
         
-       - name: Build AAB
+    - name: Build AAB
       working-directory: android
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
