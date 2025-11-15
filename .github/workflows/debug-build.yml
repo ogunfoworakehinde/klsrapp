@@ -1,0 +1,33 @@
+name: Debug Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+      
+    - name: Check Capacitor plugin versions
+      run: |
+        echo "=== Capacitor Dependencies ==="
+        npm list @capacitor/core @capacitor/cli @capacitor/android
+        echo "=== Checking plugin build.gradle files ==="
+        find node_modules/@capacitor -name "build.gradle" -exec echo "File: {}" \; -exec grep -H "JavaVersion.VERSION" {} \;

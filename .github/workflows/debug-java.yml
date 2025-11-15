@@ -1,0 +1,28 @@
+name: Debug Java Version
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+      
+    - name: Debug Java versions in node_modules
+      run: |
+        echo "=== FINDING ALL JAVA 21 REFERENCES ==="
+        find node_modules -name "*.gradle" -type f -exec grep -l "21" {} \; | head -20
+        echo "=== CAPACITOR BUILD FILES ==="
+        find node_modules/@capacitor -name "build.gradle" -exec echo "=== {} ===" \; -exec cat {} \; | grep -A2 -B2 "JavaVersion\|sourceCompatibility\|targetCompatibility"
