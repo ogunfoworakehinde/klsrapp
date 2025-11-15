@@ -16,7 +16,7 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        java-version: '17'  # Changed from 21 to 17
+        java-version: '21'
         distribution: 'temurin'
         
     - name: Setup Node.js
@@ -25,33 +25,44 @@ jobs:
         node-version: '20'
         cache: 'npm'
         
-    - name: Install dependencies
-      run: npm install --legacy-peer-deps
-      
+    - name: Clean install dependencies
+      run: |
+        rm -rf node_modules
+        rm -rf package-lock.json
+        npm install --legacy-peer-deps --force
+        
     - name: Build web assets
       run: npm run build
       
-    - name: Install Capacitor CLI
-      run: npm install -g @capacitor/cli
-      
-    - name: Sync capacitor android
+    - name: Install Capacitor and sync
       run: |
-        npx cap sync android
+        npm install -g @capacitor/cli
+        npx cap sync android --deployment
+      
+    - name: Fix Android Java version
+      run: |
+        cd android
+        find . -name "*.gradle" -type f -exec sed -i 's/sourceCompatibility JavaVersion.VERSION_21/sourceCompatibility JavaVersion.VERSION_17/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/targetCompatibility JavaVersion.VERSION_21/targetCompatibility JavaVersion.VERSION_17/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/jvmTarget.*21/jvmTarget = "17"/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/compileOptions.*21/compileOptions { sourceCompatibility 17 targetCompatibility 17 }/g' {} \;
       
     - name: Decode Keystore
       run: |
         echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/klsr-release.keystore
         
-    - name: Build AAB
+    - name: Build AAB with forced Java 17
       working-directory: android
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
       run: |
+        sudo update-alternatives --set java /usr/lib/jvm/temurin-17-jdk-amd64/bin/java
+        sudo update-alternatives --set javac /usr/lib/jvm/temurin-17-jdk-amd64/bin/javac
         chmod +x gradlew
-        ./gradlew clean
-        ./gradlew bundleRelease
+        ./gradlew clean bundleRelease -Dorg.gradle.java.home=/usr/lib/jvm/temurin-17-jdk-amd64
         
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
