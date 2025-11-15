@@ -15,7 +15,6 @@ android {
         versionName "1.0"
     }
 
-    // SIGNING CONFIGS MUST COME BEFORE BUILD TYPES
     signingConfigs {
         release {
             storeFile file('klsr-release.keystore')
@@ -35,12 +34,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = '21'
+        jvmTarget = '17'  # Changed from 21 to 17
     }
 
     buildFeatures {
@@ -51,7 +50,7 @@ android {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:1.6.1"
-    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.core:core-ktx:1.10.1"  # Use compatible version
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     
     // Capacitor core
