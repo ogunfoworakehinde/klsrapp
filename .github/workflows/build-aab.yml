@@ -28,20 +28,6 @@ jobs:
     - name: Install dependencies
       run: npm install --legacy-peer-deps
       
-    - name: Fix Capacitor Java version COMPREHENSIVE
-      run: |
-        echo "=== COMPREHENSIVE CAPACITOR JAVA FIX ==="
-        # Method 1: Direct sed commands for all Capacitor plugins
-        find node_modules/@capacitor -name "build.gradle" -exec sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' {} \;
-        find node_modules/@capacitor -name "build.gradle" -exec sed -i 's/sourceCompatibility JavaVersion.VERSION_21/sourceCompatibility JavaVersion.VERSION_17/g' {} \;
-        find node_modules/@capacitor -name "build.gradle" -exec sed -i 's/targetCompatibility JavaVersion.VERSION_21/targetCompatibility JavaVersion.VERSION_17/g' {} \;
-        find node_modules/@capacitor -name "build.gradle" -exec sed -i 's/jvmTarget.*21/jvmTarget = "17"/g' {} \;
-        
-        # Method 2: Check if fixes worked
-        echo "=== VERIFYING FIXES ==="
-        find node_modules/@capacitor -name "build.gradle" -exec grep -H "JavaVersion.VERSION\|sourceCompatibility\|targetCompatibility" {} \;
-        echo "=== FIX COMPLETED ==="
-      
     - name: Build web assets
       run: npm run build
       
@@ -55,7 +41,7 @@ jobs:
       run: |
         echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/klsr-release.keystore
         
-    - name: Build AAB with forced Java 17
+    - name: Build AAB
       working-directory: android
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -63,11 +49,7 @@ jobs:
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         chmod +x gradlew
-        # Force Java 17 in multiple ways
-        export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-        ./gradlew clean bundleRelease \
-          -Dorg.gradle.java.home=/usr/lib/jvm/temurin-17-jdk-amd64 \
-          -Porg.gradle.java.home=/usr/lib/jvm/temurin-17-jdk-amd64
+        ./gradlew clean bundleRelease
         
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
