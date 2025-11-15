@@ -29,3 +29,16 @@ yarn-error.log*
 
 # Optional eslint cache
 .eslintcache
+
+# Android (ADD THESE LINES)
+android/local.properties
+android/.gradle
+android/app/build
+android/.idea
+android/captures/
+.android
+*.keystore
+*.jks
+
+# iOS
+ios/.xcode.env.local
