@@ -5,16 +5,14 @@ plugins {
     id 'org.jetbrains.kotlin.android' version '1.9.10' apply false
 }
 
-
 subprojects {
     afterEvaluate { project ->
         project.tasks.withType(JavaCompile) {
-            sourceCompatibility = '17'
-            targetCompatibility = '17'
+            sourceCompatibility = '21'
+            targetCompatibility = '21'
         }
     }
 }
-
 
 tasks.register("clean", Delete) {
     delete(rootProject.buildDir)

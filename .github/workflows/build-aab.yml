@@ -16,22 +16,27 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
         
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
+        cache: 'npm'
         
-    - name: Install dependencies with legacy peer deps
+    - name: Install dependencies
       run: npm install --legacy-peer-deps
       
     - name: Build web assets
       run: npm run build
       
-    - name: Sync capacitor
-      run: npx cap sync
+    - name: Install Capacitor CLI
+      run: npm install -g @capacitor/cli
+      
+    - name: Sync capacitor android
+      run: |
+        npx cap sync android
       
     - name: Decode Keystore
       run: |
@@ -39,13 +44,14 @@ jobs:
         
     - name: Build AAB
       working-directory: android
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         chmod +x gradlew
-        ./gradlew bundleRelease \
-          -Pandroid.injected.signing.store.file=app/klsr-release.keystore \
-          -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
-          -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        ./gradlew clean
+        ./gradlew bundleRelease
         
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4

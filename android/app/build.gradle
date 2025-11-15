@@ -20,28 +20,50 @@ android {
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('klsr-release.keystore')
+            storePassword System.getenv('KEYSTORE_PASSWORD')
+            keyAlias System.getenv('KEY_ALIAS')
+            keyPassword System.getenv('KEY_PASSWORD')
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '21'
+    }
+
+    buildFeatures {
+        viewBinding true
     }
 }
 
 dependencies {
-    implementation project(":capacitor-android")
-    implementation project(":capacitor-app")
-    implementation project(":capacitor-haptics")
-    implementation project(":capacitor-keyboard")
-    implementation project(":capacitor-share")
-    implementation project(":capacitor-status-bar")
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    
+    // Capacitor core
+    implementation project(':capacitor-android')
+}
 
-    // Use last SDK 34 compatible versions
-    implementation 'androidx.core:core-ktx:1.10.1'
-    implementation 'androidx.core:core:1.10.1'
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, skipping")
 }
