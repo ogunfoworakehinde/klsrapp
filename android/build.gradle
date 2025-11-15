@@ -8,8 +8,8 @@ plugins {
 subprojects {
     afterEvaluate { project ->
         project.tasks.withType(JavaCompile) {
-            sourceCompatibility = '17'  # Changed from 21 to 17
-            targetCompatibility = '17'  # Changed from 21 to 17
+            sourceCompatibility = '17'  // Changed from 21 to 17
+            targetCompatibility = '17'  // Changed from 21 to 17
         }
     }
 }
