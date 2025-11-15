@@ -25,44 +25,40 @@ jobs:
         node-version: '20'
         cache: 'npm'
         
-    - name: Clean install dependencies
-      run: |
-        rm -rf node_modules
-        rm -rf package-lock.json
-        npm install --legacy-peer-deps --force
-        
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+      
     - name: Build web assets
       run: npm run build
       
-    - name: Install Capacitor and sync
-      run: |
-        npm install -g @capacitor/cli
-        npx cap sync android --deployment
+    - name: Install Capacitor CLI
+      run: npm install -g @capacitor/cli
       
-    - name: Fix Android Java version
+    - name: Sync capacitor android
+      run: npx cap sync android
+      
+    - name: Update Android files for Java 21
       run: |
         cd android
-        find . -name "*.gradle" -type f -exec sed -i 's/sourceCompatibility JavaVersion.VERSION_21/sourceCompatibility JavaVersion.VERSION_17/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/targetCompatibility JavaVersion.VERSION_21/targetCompatibility JavaVersion.VERSION_17/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/jvmTarget.*21/jvmTarget = "17"/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/compileOptions.*21/compileOptions { sourceCompatibility 17 targetCompatibility 17 }/g' {} \;
+        # Update all gradle files to use Java 21
+        find . -name "*.gradle" -type f -exec sed -i 's/JavaVersion.VERSION_17/JavaVersion.VERSION_21/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/jvmTarget.*17/jvmTarget = "21"/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/sourceCompatibility.*17/sourceCompatibility JavaVersion.VERSION_21/g' {} \;
+        find . -name "*.gradle" -type f -exec sed -i 's/targetCompatibility.*17/targetCompatibility JavaVersion.VERSION_21/g' {} \;
       
     - name: Decode Keystore
       run: |
         echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > android/app/klsr-release.keystore
         
-    - name: Build AAB with forced Java 17
+    - name: Build AAB
       working-directory: android
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
       run: |
-        sudo update-alternatives --set java /usr/lib/jvm/temurin-17-jdk-amd64/bin/java
-        sudo update-alternatives --set javac /usr/lib/jvm/temurin-17-jdk-amd64/bin/javac
         chmod +x gradlew
-        ./gradlew clean bundleRelease -Dorg.gradle.java.home=/usr/lib/jvm/temurin-17-jdk-amd64
+        ./gradlew clean bundleRelease
         
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
