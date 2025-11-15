@@ -16,7 +16,7 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        java-version: '21'
+        java-version: '17'
         distribution: 'temurin'
         
     - name: Setup Node.js
@@ -36,15 +36,6 @@ jobs:
       
     - name: Sync capacitor android
       run: npx cap sync android
-      
-    - name: Update Android files for Java 21
-      run: |
-        cd android
-        # Update all gradle files to use Java 21
-        find . -name "*.gradle" -type f -exec sed -i 's/JavaVersion.VERSION_17/JavaVersion.VERSION_21/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/jvmTarget.*17/jvmTarget = "21"/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/sourceCompatibility.*17/sourceCompatibility JavaVersion.VERSION_21/g' {} \;
-        find . -name "*.gradle" -type f -exec sed -i 's/targetCompatibility.*17/targetCompatibility JavaVersion.VERSION_21/g' {} \;
       
     - name: Decode Keystore
       run: |
