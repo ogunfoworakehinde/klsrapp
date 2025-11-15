@@ -29,7 +29,9 @@ jobs:
       run: npm install --legacy-peer-deps
       
     - name: Fix Capacitor Java version
-      run: node fix-capacitor-java.js
+      run: |
+        chmod +x fix-capacitor-java.sh
+        ./fix-capacitor-java.sh
       
     - name: Build web assets
       run: npm run build
