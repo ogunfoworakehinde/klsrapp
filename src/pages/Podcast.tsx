@@ -116,66 +116,12 @@ const Podcast = () => {
   };
 
   const formatDate = (d: string) => {
-    try {
-      const date = new Date(d);
-      if (isNaN(date.getTime())) return 'Date unavailable';
-      
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      let hours = date.getHours();
-      const ampm = hours >= 12 ? 'pm' : 'am';
-      hours = hours % 12 || 12;
-      return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${pad(date.getFullYear() % 100)} ${pad(hours)}:${pad(date.getMinutes())}${ampm}`;
-    } catch (error) {
-      return 'Date unavailable';
-    }
-  };
-
-  // Improved XML parsing function
-  const extractPodcastData = (items: any[]) => {
-    return items.map((ele: any) => {
-      try {
-        const children = ele.children || [];
-        
-        // Find elements by name instead of hardcoded indices
-        const findElement = (name: string) => {
-          return children.find((child: any) => child.name === name);
-        };
-
-        const findElementByNames = (names: string[]) => {
-          for (const name of names) {
-            const elem = children.find((child: any) => child.name === name);
-            if (elem) return elem;
-          }
-          return null;
-        };
-
-        const titleElem = findElement('title');
-        const enclosureElem = findElement('enclosure');
-        const pubDateElem = findElement('pubDate');
-        const descriptionElem = findElement('description');
-        const itunesImageElem = findElementByNames(['itunes:image', 'image']);
-
-        return {
-          title: titleElem?.value?.replace(/[<>]/g, "")?.trim() || 'Unknown Title',
-          url: enclosureElem?.attributes?.url || '',
-          date: formatDate(pubDateElem?.value || ''),
-          cover_art_url: itunesImageElem?.attributes?.href || './images/podcast.jpg',
-          description: descriptionElem?.value?.replace(
-            /(<\/?[^>]+(>|$))|(&quot;)|(&[^;]+;)/g,
-            " "
-          )?.replace(/\s+/g, ' ')?.trim() || 'No description available',
-        };
-      } catch (error) {
-        console.error('Error parsing podcast item:', error);
-        return {
-          title: 'Unknown Title',
-          url: '',
-          date: 'Date unavailable',
-          cover_art_url: './images/podcast.jpg',
-          description: 'No description available'
-        };
-      }
-    });
+    const date = new Date(d);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    let hours = date.getHours();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12 || 12;
+    return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${pad(date.getFullYear() % 100)} ${pad(hours)}:${pad(date.getMinutes())}${ampm}`;
   };
 
   const fetchPodcastData = async () => {
@@ -201,7 +147,41 @@ const Podcast = () => {
       
       setPodcastData(items);
 
-      const newSongs = extractPodcastData(items);
+      // Parse items based on the actual XML structure
+      const newSongs = items.map((ele: any) => {
+        const children = ele.children || [];
+        
+        // Find elements by name since indices might vary
+        const findElement = (name: string) => {
+          return children.find((child: any) => child.name === name);
+        };
+
+        const titleElem = findElement('title');
+        const enclosureElem = findElement('enclosure');
+        const pubDateElem = findElement('pubDate');
+        const descriptionElem = findElement('description');
+        const itunesImageElem = findElement('itunes:image');
+        
+        // Get the cover art URL - this is the correct way based on the XML
+        const cover_art_url = itunesImageElem?.attributes?.href;
+
+        console.log('Cover art element:', itunesImageElem);
+        console.log('Cover art URL:', cover_art_url);
+
+        return {
+          title: titleElem?.value?.replace(/[<>]/g, "") || 'Unknown Title',
+          url: enclosureElem?.attributes?.url || '',
+          date: formatDate(pubDateElem?.value || ''),
+          cover_art_url: cover_art_url || './images/podcast.jpg', // Use actual URL or fallback
+          description: descriptionElem?.value?.replace(
+            /(<\/?[^>]+(>|$))|(&quot;)|(>)/g,
+            " "
+          ) || 'No description available',
+        };
+      });
+
+      console.log('🎵 Processed songs with cover art:', newSongs);
+
       setSongs(newSongs);
       setStatus({ loading: false, loaded: true, error: null });
       
@@ -306,6 +286,7 @@ const Podcast = () => {
                   alt="Album Art" 
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
+                    console.warn('Cover art failed to load, using fallback:', target.src);
                     target.src = './images/podcast.jpg';
                   }}
                 />
@@ -364,11 +345,24 @@ const Podcast = () => {
                     className="song amplitude-play border p-3 mb-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                     data-amplitude-song-index={index + ""}
                   >
-                    <strong className='text-sm font-fancy block mb-1'>{song.title}</strong>
-                    <p className='line-clamp-3 font-semibold text-[#928a8a] text-xs'>{song.description}</p>
-                    <div className='flex justify-between items-center mt-2'>
-                      <span className='text-xs text-purple-600'>{song.date}</span>
-                      <span className='text-xs text-gray-400'>Click to play</span>
+                    <div className="flex items-start gap-3">
+                      <img 
+                        src={song.cover_art_url} 
+                        alt={song.title}
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = './images/podcast.jpg';
+                        }}
+                      />
+                      <div className="flex-1">
+                        <strong className='text-sm font-fancy block mb-1'>{song.title}</strong>
+                        <p className='line-clamp-2 font-semibold text-[#928a8a] text-xs'>{song.description}</p>
+                        <div className='flex justify-between items-center mt-2'>
+                          <span className='text-xs text-purple-600'>{song.date}</span>
+                          <span className='text-xs text-gray-400'>Click to play</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -416,4 +410,3 @@ const Podcast = () => {
 };
 
 export default Podcast;
-
