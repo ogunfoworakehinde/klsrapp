@@ -85,47 +85,71 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
       return `${pad(date.getDate())}-${pad(date.getMonth()+1)}-${pad(date.getFullYear() % 100)} ${pad(hours)}:${pad(date.getMinutes())}${ampm}`;
     };
 
-    useEffect(() => {
-      const fetchPod = async () => {
-        setStatus({ loading: true, loaded: false, error: null });
-    
-        try {
-          const response = await fetch(`https://anchor.fm/s/1d6ad87c/podcast/rss`);
-          const str = await response.text();
-    
-          const xml = new XMLParser().parseFromString(str);
-          setPodcastData(xml.getElementsByTagName("item"));
-    
-          xml.getElementsByTagName("item").forEach((ele: any) => {
-            setSongs((songs: any) => [
-              ...songs,
-              {
-                title: ele?.children[0]?.value?.replace(/>/g, ""),
-                url: ele?.children[6]?.attributes?.url,
-                date: formatDate(ele?.children[5]?.value),
-                cover_art_url: ele?.children[10]?.attributes?.href,
-                description: ele?.children[1]?.value?.replace(
-                  /(<\/?[^>]+(>|$))|(&quot;)|(>)/g,
-                  " "
-                ),
-              },
-            ]);
-          });
-    
-          setStatus({ loading: false, loaded: true, error: null });
-        } catch (err: any) {
-          console.error("Podcast fetch failed:", err);
-    
-          // Normalize error message
-          const message =
-            err?.message || "Something went wrong while fetching podcast";
-    
-          setStatus({ loading: false, loaded: false, error: message });
-        }
-      };
-    
-      fetchPod();
-    }, []);
+   useEffect(() => {
+  const fetchPod = async () => {
+    setStatus({ loading: true, loaded: false, error: null });
+
+    try {
+      console.log('Starting podcast fetch...');
+      
+      // Test basic connectivity first
+      const connectivityTest = await fetch('https://www.google.com', { method: 'HEAD' });
+      if (!connectivityTest.ok) {
+        throw new Error('No internet connection');
+      }
+      
+      const response = await fetch(`https://anchor.fm/s/1d6ad87c/podcast/rss`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const str = await response.text();
+      console.log('RSS feed fetched successfully');
+
+      const xml = new XMLParser().parseFromString(str);
+      const items = xml.getElementsByTagName("item");
+      
+      if (!items || items.length === 0) {
+        throw new Error('No podcast items found in RSS feed');
+      }
+      
+      setPodcastData(items);
+
+      const newSongs = items.map((ele: any) => ({
+        title: ele?.children[0]?.value?.replace(/>/g, "") || 'Unknown Title',
+        url: ele?.children[6]?.attributes?.url || '',
+        date: formatDate(ele?.children[5]?.value),
+        cover_art_url: ele?.children[10]?.attributes?.href || '',
+        description: ele?.children[1]?.value?.replace(
+          /(<\/?[^>]+(>|$))|(&quot;)|(>)/g,
+          " "
+        ) || 'No description available',
+      }));
+
+      setSongs(newSongs);
+      setStatus({ loading: false, loaded: true, error: null });
+      
+    } catch (err: any) {
+      console.error("Podcast fetch failed:", err);
+      
+      let message = "Unable to load podcasts. Please check your internet connection and try again.";
+      if (err.message.includes("No internet connection")) {
+        message = "No internet connection. Please check your network settings.";
+      } else if (err.message.includes("HTTP error")) {
+        message = "Server error. Please try again later.";
+      } else if (err.message.includes("No podcast items")) {
+        message = "No podcasts available at the moment.";
+      }
+
+      setStatus({ loading: false, loaded: false, error: message });
+      setToastMessage(message);
+      setShowToast(true);
+    }
+  };
+
+  fetchPod();
+}, []);
     
 
         useEffect(() => {
