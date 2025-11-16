@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.kingdomlifestyleradio'
-    compileSdk 35
+    compileSdk 33
 
     defaultConfig {
         applicationId "com.kingdomlifestyleradio"
         minSdk 24
-        targetSdk 35
+        targetSdk 33
         versionCode 1
         versionName "1.0"
     }
@@ -50,7 +50,7 @@ android {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:1.6.1"
-    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.core:core-ktx:1.10.1"
     implementation project(':capacitor-android')
 }
 
