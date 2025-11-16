@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import  XMLParser from 'react-xml-parser';
+import XMLParser from 'react-xml-parser';
 import AudioPlayer from 'react-h5-audio-player';
 import 'react-h5-audio-player/lib/styles.css';
 import Amplitude, { Song } from "amplitudejs";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowCircleLeft, faArrowCircleRight, faBackwardStep, faClock, faForwardStep, faPauseCircle, faPlayCircle } from "@fortawesome/free-solid-svg-icons";
-
 
 import {
   IonPage,
@@ -22,16 +21,14 @@ import {
   IonToast
 } from '@ionic/react';
 
-
 import { RefresherEventDetail } from '@ionic/core';
 import Error from '../components/Error';
 
-const Podcast = () =>{
-  
+const Podcast = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [play, setPlay] = useState(false);
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true);
 
   const audioRef = useRef<any>(null);
   const [podcastData, setPodcastData] = useState<any>();
@@ -40,16 +37,14 @@ const Podcast = () =>{
   const [status, setStatus] = useState({
     loading: false,
     loaded: false,
-    error: null,
+    error: null as string | null,
   });
-
-
 
   // Refs
   const targetRef = useRef<any>(null);
   const playlistRef = useRef<any>(null);
 
-  //Pagination
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
@@ -61,48 +56,138 @@ const Podcast = () =>{
   // Calculate total pages
   const totalPages = Math.ceil(songs.length / itemsPerPage);
 
+  // Multiple CORS proxy options
+  const PROXY_OPTIONS = [
+    {
+      name: 'allorigins',
+      url: (targetUrl: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
+    },
+    {
+      name: 'cors-anywhere',
+      url: (targetUrl: string) => `https://cors-anywhere.herokuapp.com/${targetUrl}`
+    },
+    {
+      name: 'cors-proxy',
+      url: (targetUrl: string) => `https://cors.bridged.cc/${targetUrl}`
+    }
+  ];
 
-const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
-  try {
-    // Perform your data fetching here
-    window.location.reload();
-    // If successful
-    event.detail.complete();
-  } catch (error) {
-    // Handle the error here
-    setToastMessage('Network error. Please try again.');
-    setShowToast(true);
-    event.detail.complete();
-  }
-};
+  const fetchWithProxy = async (url: string, proxyIndex = 0): Promise<Response> => {
+    if (proxyIndex >= PROXY_OPTIONS.length) {
+      throw new Error('All proxy attempts failed');
+    }
 
-    const formatDate = (d:string) => {
+    try {
+      const proxy = PROXY_OPTIONS[proxyIndex];
+      console.log(`🔄 Trying proxy: ${proxy.name}`);
+      
+      const proxyUrl = proxy.url(url);
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/rss+xml, text/xml, */*',
+          'User-Agent': 'Mozilla/5.0 (compatible; MyApp/1.0)'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Proxy ${proxy.name} failed with status: ${response.status}`);
+      }
+
+      console.log(`✅ Proxy ${proxy.name} succeeded`);
+      return response;
+    } catch (error) {
+      console.warn(`❌ Proxy ${PROXY_OPTIONS[proxyIndex].name} failed:`, error);
+      
+      // Try next proxy
+      return fetchWithProxy(url, proxyIndex + 1);
+    }
+  };
+
+  const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
+    try {
+      await fetchPodcastData();
+      event.detail.complete();
+    } catch (error) {
+      setToastMessage('Network error. Please try again.');
+      setShowToast(true);
+      event.detail.complete();
+    }
+  };
+
+  const formatDate = (d: string) => {
+    try {
       const date = new Date(d);
+      if (isNaN(date.getTime())) return 'Date unavailable';
+      
       const pad = (n: number) => n.toString().padStart(2, '0');
       let hours = date.getHours();
       const ampm = hours >= 12 ? 'pm' : 'am';
       hours = hours % 12 || 12;
-      return `${pad(date.getDate())}-${pad(date.getMonth()+1)}-${pad(date.getFullYear() % 100)} ${pad(hours)}:${pad(date.getMinutes())}${ampm}`;
-    };
+      return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${pad(date.getFullYear() % 100)} ${pad(hours)}:${pad(date.getMinutes())}${ampm}`;
+    } catch (error) {
+      return 'Date unavailable';
+    }
+  };
 
-   useEffect(() => {
-  const fetchPod = async () => {
+  // Improved XML parsing function
+  const extractPodcastData = (items: any[]) => {
+    return items.map((ele: any) => {
+      try {
+        const children = ele.children || [];
+        
+        // Find elements by name instead of hardcoded indices
+        const findElement = (name: string) => {
+          return children.find((child: any) => child.name === name);
+        };
+
+        const findElementByNames = (names: string[]) => {
+          for (const name of names) {
+            const elem = children.find((child: any) => child.name === name);
+            if (elem) return elem;
+          }
+          return null;
+        };
+
+        const titleElem = findElement('title');
+        const enclosureElem = findElement('enclosure');
+        const pubDateElem = findElement('pubDate');
+        const descriptionElem = findElement('description');
+        const itunesImageElem = findElementByNames(['itunes:image', 'image']);
+
+        return {
+          title: titleElem?.value?.replace(/[<>]/g, "")?.trim() || 'Unknown Title',
+          url: enclosureElem?.attributes?.url || '',
+          date: formatDate(pubDateElem?.value || ''),
+          cover_art_url: itunesImageElem?.attributes?.href || './images/podcast.jpg',
+          description: descriptionElem?.value?.replace(
+            /(<\/?[^>]+(>|$))|(&quot;)|(&[^;]+;)/g,
+            " "
+          )?.replace(/\s+/g, ' ')?.trim() || 'No description available',
+        };
+      } catch (error) {
+        console.error('Error parsing podcast item:', error);
+        return {
+          title: 'Unknown Title',
+          url: '',
+          date: 'Date unavailable',
+          cover_art_url: './images/podcast.jpg',
+          description: 'No description available'
+        };
+      }
+    });
+  };
+
+  const fetchPodcastData = async () => {
     setStatus({ loading: true, loaded: false, error: null });
 
     try {
       console.log('Starting podcast fetch...');
       
-      // Test basic connectivity first
-      const connectivityTest = await fetch('https://www.google.com', { method: 'HEAD' });
-      if (!connectivityTest.ok) {
-        throw new Error('No internet connection');
-      }
+      const rssUrl = 'https://anchor.fm/s/1d6ad87c/podcast/rss';
       
-      const response = await fetch(`https://anchor.fm/s/1d6ad87c/podcast/rss`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // Use proxy instead of direct fetch
+      const response = await fetchWithProxy(rssUrl);
       
       const str = await response.text();
       console.log('RSS feed fetched successfully');
@@ -116,17 +201,7 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
       
       setPodcastData(items);
 
-      const newSongs = items.map((ele: any) => ({
-        title: ele?.children[0]?.value?.replace(/>/g, "") || 'Unknown Title',
-        url: ele?.children[6]?.attributes?.url || '',
-        date: formatDate(ele?.children[5]?.value),
-        cover_art_url: ele?.children[10]?.attributes?.href || '',
-        description: ele?.children[1]?.value?.replace(
-          /(<\/?[^>]+(>|$))|(&quot;)|(>)/g,
-          " "
-        ) || 'No description available',
-      }));
-
+      const newSongs = extractPodcastData(items);
       setSongs(newSongs);
       setStatus({ loading: false, loaded: true, error: null });
       
@@ -134,12 +209,12 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
       console.error("Podcast fetch failed:", err);
       
       let message = "Unable to load podcasts. Please check your internet connection and try again.";
-      if (err.message.includes("No internet connection")) {
-        message = "No internet connection. Please check your network settings.";
-      } else if (err.message.includes("HTTP error")) {
-        message = "Server error. Please try again later.";
+      if (err.message.includes("All proxy attempts failed")) {
+        message = "Network error. All connection attempts failed. Please check your internet connection.";
       } else if (err.message.includes("No podcast items")) {
         message = "No podcasts available at the moment.";
+      } else if (err.message.includes("failed with status")) {
+        message = "Server temporarily unavailable. Please try again later.";
       }
 
       setStatus({ loading: false, loaded: false, error: message });
@@ -148,43 +223,47 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
     }
   };
 
-  fetchPod();
-}, []);
-    
+  useEffect(() => {
+    fetchPodcastData();
+  }, []);
 
-        useEffect(() => {
-          if (songs.length > 0) {
-            Amplitude.init({
-              songs,
-              start_song: 0
-            });
-          }
-        }, [songs]); // 
+  useEffect(() => {
+    if (songs.length > 0) {
+      try {
+        Amplitude.init({
+          songs,
+          start_song: 0
+        });
+      } catch (error) {
+        console.error('Error initializing Amplitude:', error);
+      }
+    }
+  }, [songs]);
 
+  const handleClick = () => {
+    if (targetRef.current) {
+      targetRef?.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    setPlay(true);
+  };
 
-        const handleClick = () => {
-          if (targetRef.current) {
-            targetRef?.current?.scrollIntoView({ behavior: "smooth" });
-          }
-          setPlay(true);
-        };
+  const next = () => {
+    setCurrentPage(p => Math.min(p + 1, totalPages));
+    if (playlistRef.current) {
+      playlistRef?.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
-        const next = () =>{
-          setCurrentPage(p => Math.min(p + 1, totalPages))
-          if (playlistRef.current) {
-            playlistRef?.current?.scrollIntoView({ behavior: "smooth" });
-          }
-        }
+  const prev = () => {
+    setCurrentPage(p => Math.max(p - 1, 1));
+    if (playlistRef.current) {
+      playlistRef?.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
-        const prev = () =>{
-          setCurrentPage(p => Math.max(p - 1, 1))
-          if (playlistRef.current) {
-            playlistRef?.current?.scrollIntoView({ behavior: "smooth" });
-          }
-        }
-    return(
-        <IonPage>
-              <IonHeader>
+  return (
+    <IonPage>
+      <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
             <IonBackButton></IonBackButton>
@@ -193,9 +272,9 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-      <IonRefresher slot="fixed" onIonRefresh={doRefresh}>
+        <IonRefresher slot="fixed" onIonRefresh={doRefresh}>
           <IonRefresherContent
-           className='custom-refresher-text !text-white'
+            className='custom-refresher-text !text-white'
             pullingIcon="chevron-down-circle-outline"
             pullingText="Pull to refresh"
             refreshingSpinner="circles"
@@ -203,140 +282,138 @@ const doRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
           />
         </IonRefresher>
         <div className='p-2'>
+          <div className='mb-2 w-full rounded-2xl overflow-hidden bg-black max-h-max relative'>
+            <img className='w-[200%]' src="./images/podcast.jpg" alt="" />
+            <h3 className='p-3 font-headline text-center absolute bottom-0 text-white text-3xl font-bold'>Kingdom Lifestyle Podcast</h3>
+          </div>
 
-      
-
-        <div className='mb-2 w-full rounded-2xl overflow-hidden bg-black max-h-max relative'>
-          <img className='w-[200%]' src="./images/podcast.jpg" alt="" />
-          <h3 className='p-3 font-headline text-center absolute bottom-0 text-white text-3xl font-bold'>Kingdom Lifestyle Podcast</h3> 
-        </div>
-
-        {
-          status.loading && (
+          {status.loading && (
             <div className='w-full min-h-[400px] flex justify-center items-center'>
               <div className='w-1/3'>
                 <img src="./images/loader.gif" alt="" />
                 <h4 className='text-center mt-2 text-blue-600'>Loading</h4>
               </div>
             </div>
-          )
-         }
-          {
-          status.loaded && (
+          )}
+
+          {status.loaded && (
             <div className="min-h-[60vh]">
-            <div ref={targetRef} className="amplitude-player rounded-2xl overflow-clip">
-            {/* Cover Art */}
-            <img className='rounded-2xl' data-amplitude-song-info="cover_art_url" alt="Album Art" />
+              <div ref={targetRef} className="amplitude-player rounded-2xl overflow-clip">
+                {/* Cover Art */}
+                <img 
+                  className='rounded-2xl w-full h-48 object-cover' 
+                  data-amplitude-song-info="cover_art_url" 
+                  alt="Album Art" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = './images/podcast.jpg';
+                  }}
+                />
 
-            <div className='bg-[#1f0d2a] text-white font-bold p-5 mt-2 rounded-2xl'>
-            <div className='flex gap-2'>
-              <span className="amplitude-current-time"></span> {" "}
-              <input type="range" className="amplitude-song-slider w-full" />
-              {/* Current & Duration Time */}
-              <span className="amplitude-duration-time"></span>
-            </div>
+                <div className='bg-[#1f0d2a] text-white font-bold p-5 mt-2 rounded-2xl'>
+                  <div className='flex gap-2 items-center'>
+                    <span className="amplitude-current-time text-sm w-12"></span>
+                    <input type="range" className="amplitude-song-slider w-full" />
+                    <span className="amplitude-duration-time text-sm w-12"></span>
+                  </div>
 
-            <div className='text-4xl justify-evenly flex mt-4'>
-
-              <button className="amplitude-prev"><FontAwesomeIcon icon={faBackwardStep} /></button>
-            
-              <button onClick={() => setPlay(!play)} className="amplitude-play-pause">
-                {
-                  play ? (<FontAwesomeIcon icon={faPauseCircle} />) : (<FontAwesomeIcon icon={faPlayCircle} />)
-                }
-                </button>
-              <button className="amplitude-next"><FontAwesomeIcon icon={faForwardStep} /></button>
-
-            </div>
-
-            </div>
-
-            {/* Song Info */}
-            <div className='p-3'>
-              <div className='flex items-end justify-end p-1 text-[purple] gap-2'>
-              <FontAwesomeIcon icon={faClock} />
-              <span className='font-semibold text-xs' data-amplitude-song-info="date"></span><br/>
-              </div>
-              <span style={{fontFamily: "Funnel Display"}}  className='font-semibold text-2xl' data-amplitude-song-info="title"></span>
-              <div style={{fontFamily: "Funnel Display", marginTop: '10px'}}  className='text-sm text-[#5c5454] font-semibold' data-amplitude-song-info="description"></div>
-            </div>
-
-            {/* Controls */}
-
-            {/* Progress Bar */}
-
-          </div>
-
-          <div ref={playlistRef} className="playlist p-2">
-              {currentItems.map((song:any, index:number) => (
-                <div
-                  onClick={handleClick}
-                  key={index}
-                  className="song amplitude-play border p-3"
-                  data-amplitude-song-index={index+""}
-
-                >
-                  <strong className='text-sm font-fancy'>{song.title}</strong>
-                  <p className='line-clamp-3 font-semibold text-[#928a8a] text-xs'>{song.description}</p>
-
+                  <div className='text-4xl justify-evenly flex mt-4'>
+                    <button className="amplitude-prev hover:text-yellow-400 transition-colors">
+                      <FontAwesomeIcon icon={faBackwardStep} />
+                    </button>
+                    <button 
+                      onClick={() => setPlay(!play)} 
+                      className="amplitude-play-pause hover:text-yellow-400 transition-colors"
+                    >
+                      {play ? (
+                        <FontAwesomeIcon icon={faPauseCircle} />
+                      ) : (
+                        <FontAwesomeIcon icon={faPlayCircle} />
+                      )}
+                    </button>
+                    <button className="amplitude-next hover:text-yellow-400 transition-colors">
+                      <FontAwesomeIcon icon={faForwardStep} />
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className='flex justify-between p-2'>
-              {/* Previous button */}
-              <button
-                className='bg-yellow-600 text-white font-semibold p-2 text-sm rounded'
-                onClick={() => prev()}
-                disabled={currentPage === 1}
-              >
-              <FontAwesomeIcon icon={faArrowCircleLeft} />
-              Prev
-              </button>
-              {/* Page numbers */}
-            
-            
-                <button>
-                  <p>Page {currentPage}</p> 
+                {/* Song Info */}
+                <div className='p-3'>
+                  <div className='flex items-end justify-end p-1 text-[purple] gap-2'>
+                    <FontAwesomeIcon icon={faClock} />
+                    <span className='font-semibold text-xs' data-amplitude-song-info="date"></span>
+                  </div>
+                  <span 
+                    style={{ fontFamily: "Funnel Display" }}
+                    className='font-semibold text-2xl block mt-2'
+                    data-amplitude-song-info="title"
+                  ></span>
+                  <div 
+                    style={{ fontFamily: "Funnel Display", marginTop: '10px' }}
+                    className='text-sm text-[#5c5454] font-semibold line-clamp-3'
+                    data-amplitude-song-info="description"
+                  ></div>
+                </div>
+              </div>
+
+              <div ref={playlistRef} className="playlist p-2">
+                {currentItems.map((song: any, index: number) => (
+                  <div
+                    onClick={handleClick}
+                    key={index}
+                    className="song amplitude-play border p-3 mb-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    data-amplitude-song-index={index + ""}
+                  >
+                    <strong className='text-sm font-fancy block mb-1'>{song.title}</strong>
+                    <p className='line-clamp-3 font-semibold text-[#928a8a] text-xs'>{song.description}</p>
+                    <div className='flex justify-between items-center mt-2'>
+                      <span className='text-xs text-purple-600'>{song.date}</span>
+                      <span className='text-xs text-gray-400'>Click to play</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className='flex justify-between p-2'>
+                <button
+                  className='bg-yellow-600 text-white font-semibold p-2 text-sm rounded disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2'
+                  onClick={prev}
+                  disabled={currentPage === 1}
+                >
+                  <FontAwesomeIcon icon={faArrowCircleLeft} />
+                  Prev
                 </button>
-          
-                
-              
-              {/* Next button */}
-              <button
-                className='bg-yellow-600 text-sm text-white font-semibold p-2 rounded'
-                onClick={next}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <FontAwesomeIcon icon={faArrowCircleRight} />
-                
-              </button>
+
+                <button className='text-sm text-gray-700 font-semibold'>
+                  Page {currentPage} of {totalPages}
+                </button>
+
+                <button
+                  className='bg-yellow-600 text-sm text-white font-semibold p-2 rounded disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2'
+                  onClick={next}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <FontAwesomeIcon icon={faArrowCircleRight} />
+                </button>
+              </div>
             </div>
-          
+          )}
 
-            </div>
-
-          )
-        }
-
-        {
-          status.error && (
-            <Error />
-          )
-
-        }
-
-
-
-            </div>
-
+          {status.error && <Error />}
+        </div>
       </IonContent>
 
-        </IonPage>
-    )
-}
+      <IonToast
+        isOpen={showToast}
+        onDidDismiss={() => setShowToast(false)}
+        message={toastMessage}
+        duration={4000}
+        position="bottom"
+      />
+    </IonPage>
+  );
+};
 
-export default Podcast
-
+export default Podcast;
 
