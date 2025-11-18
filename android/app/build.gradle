@@ -11,7 +11,7 @@ android {
         applicationId "com.kingdomlifestyleradio"
         minSdk 24
         targetSdk 35
-        versionCode 2
+        versionCode 10
         versionName "1.1"
     }
 
